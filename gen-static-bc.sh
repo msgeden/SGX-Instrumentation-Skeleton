@@ -12,7 +12,8 @@ sed -i '/^int SGX_CDECL main/ d' ./sgx-app.c
 
 App_Include_Paths=" -IInclude -IApp -I$SGX_SDK/include"
 #App_C_Flags=" -O2 -fPIC -Wno-attributes $App_Include_Paths -DNDEBUG -UEDEBUG -UDEBUG" #release
-App_C_Flags=" -O0 -g -fPIC -Wno-attributes $App_Include_Paths -DDEBUG -UNDEBUG -UEDEBUG" #debug
+App_C_Flags=" -O2 -fPIC -Wno-attributes $App_Include_Paths -DNDEBUG -DEDEBUG -UDEBUG" #prerelease
+#App_C_Flags=" -O0 -g -fPIC -Wno-attributes $App_Include_Paths -DDEBUG -UNDEBUG -UEDEBUG" #debug
 clang -S -emit-llvm -m64 $App_C_Flags  sgx-app.c  -o sgx-app.bc
 
 cp ./enclave.so $HOME/SGX/lib
