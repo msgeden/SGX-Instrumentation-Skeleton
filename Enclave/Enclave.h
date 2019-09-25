@@ -29,27 +29,16 @@
  *
  */
 
-
 #ifndef _ENCLAVE_H_
 #define _ENCLAVE_H_
 
 #include <stdlib.h>
 #include <assert.h>
-#include <stdbool.h>
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
-void printf_on_terminal(const char *fmt, ...);
-void printf_helloworld();
-
-int *shadow_variable_cells;
-int *shadow_init_vector;
-int shadow_set_success=0;
-void set_shadow_memory(int size);
-void vi_call(int ID,int access,int value, const char* var_name);
-void free_shadow_memory();
 
 #if defined(__cplusplus)
 }

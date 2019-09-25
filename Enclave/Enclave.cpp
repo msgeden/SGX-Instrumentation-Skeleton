@@ -29,13 +29,21 @@
  *
  */
 
-
 #include <stdarg.h>
 #include <stdio.h>      /* vsnprintf */
 #include <stdbool.h>
+#include <string.h>
+#include <sgx_trts.h>
+#include <sgx_tprotected_fs.h>
 
 #include "Enclave.h"
 #include "Enclave_t.h"  /* print_string */
+
+
+int *shadow_variable_cells;
+int *shadow_init_vector;
+int shadow_set_success=0;
+//int file_descriptor=0;
 
 /* 
  * printf: 
@@ -55,32 +63,83 @@ void printf_helloworld()
 {
     printf_on_terminal("Hello World\n");
 }
+
+
+int upfs_open(const char* path) {
+    int fd = 0;
+    ocall_open(&fd, path);
+    return fd;
+}
+
+int upfs_create(const char* path) {
+    int fd = 0;
+    ocall_create(&fd, path);
+    return fd;
+}
+
+ssize_t upfs_read(int fd, void* buf, size_t size) {
+    ssize_t ret = 0;
+    ocall_read(&ret, fd, buf, size);
+    return ret;
+}
+
+ssize_t upfs_write(int fd, const void* buf, size_t size) {
+    ssize_t ret = 0;
+    ocall_write(&ret, fd, buf, size);
+    return ret;
+}
+
+int upfs_close(int fd) {
+    int ret = 0;
+    ocall_close(&ret, fd);
+    return ret;
+}
+
+void printf_on_file(const char *fmt, ...)
+{
+    int fdes=upfs_create("vi_output.log");
+    char buf[BUFSIZ] = {'\0'};
+    ssize_t ret = 0;
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, BUFSIZ, fmt, ap);
+    va_end(ap);
+    ocall_write(&ret,fdes,buf,strlen(buf));
+    upfs_close(fdes);
+}
 /*create heap space for shadow cells and corresponding initialisation vector for enumerated variables*/
 void set_shadow_memory(int size){
+    /*file_descriptor = upfs_create("vi_output.log");
+    if (file_descriptor < 0) {
+        return;
+    }*/
     shadow_variable_cells = (int*)calloc(size, sizeof(int));
     shadow_init_vector = (int*)calloc(size, sizeof(int));
     if (shadow_variable_cells!=NULL && shadow_init_vector!=NULL){
         shadow_set_success=1;
-        printf_on_terminal("\nINFO:ALLOCATION->Shadow memory for %d cells is successfully allocated\n",size);
-    }
+        printf_on_terminal("INFO:ALLOCATION->Shadow memory for %d cells is successfully allocated\n",size);
+        printf_on_file("INFO:ALLOCATION->Shadow memory for %d cells is successfully allocated\n",size);
+    }    
     return;
 }
 /*copies the variable value to allocated cell in case of a memory write or checks the variable value with the one previously stored in case of a memory read*/
 void vi_call(int ID,int access,int value, const char* var_name){
     if (shadow_set_success==1){
         if (access==1){
-            //printf_on_terminal("\nINFO:STORE->\tVar:%s\tAccess:WRITE\tValue:%d\n", var_name, value);
+            //printf_on_file(file_descriptor,"INFO:STORE->\tVar:%s\tAccess:WRITE\tValue:%d\n", var_name, value);
             shadow_variable_cells[ID]=value;
             shadow_init_vector[ID]=1;
         }
         else if (access==0){
-            //printf_on_terminal("\nINFO:LOAD->\tVar:%s\tAccess:READ\tValue:%d\n", var_name, value);
+            //printf_on_file(file_descriptor,"INFO:LOAD->\tVar:%s\tAccess:READ\tValue:%d\n", var_name, value);
             if (shadow_init_vector[ID]==1){
-                if (shadow_variable_cells[ID]!=value)
-                    printf_on_terminal("\nWARN:VIOLATION->\tVar:%s\tShadow:%d\tActual:%d\n", var_name, shadow_variable_cells[ID],  value);
+                if (shadow_variable_cells[ID]!=value){
+                    printf_on_terminal("WARN:VIOLATION->\tVar:%s\tShadow:%d\tActual:%d\n", var_name, shadow_variable_cells[ID],  value);
+                    printf_on_file("WARN:VIOLATION->\tVar:%s\tShadow:%d\tActual:%d\n", var_name, shadow_variable_cells[ID],  value);
+                }
             }
             //else{
-            //    printf_on_terminal("\nWARN:UNINITIALISED USE->\tVar:%s\tActual:%d\n", var_name,value);
+            //    //printf_on_file(file_descriptor,"WARN:UNINITIALISED USE->\tVar:%s\tActual:%d\n", var_name,value);
             //}
         }
     }
@@ -91,6 +150,7 @@ void vi_call(int ID,int access,int value, const char* var_name){
 void free_shadow_memory(){
     free(shadow_variable_cells);
     free(shadow_init_vector);
-    printf_on_terminal("\nINFO:FREE->Shadow memory is successfully freed\n");
+    printf_on_terminal("INFO:FREE->Shadow memory is successfully freed\n");
+    printf_on_file("INFO:FREE->Shadow memory is successfully freed\n");    
     return;
 }
